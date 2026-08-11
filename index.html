@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f6f4ee" />
+    <title>모아 게시판</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="site-header">
+        <a class="brand" href="#" aria-label="모아 게시판 홈">
+          <span class="brand-mark" aria-hidden="true">ㅁ</span>
+          <span>모아</span>
+        </a>
+        <div class="header-actions">
+          <span id="db-status" class="db-status checking"><i></i> 연결 확인 중</span>
+          <button class="button button-dark header-write" type="button" data-action="write">
+            <span aria-hidden="true">＋</span> 글쓰기
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero" aria-labelledby="page-title">
+          <p class="eyebrow">OUR COMMUNITY</p>
+          <div class="hero-copy">
+            <h1 id="page-title">생각을 나누고,<br /><em>이야기를 모아요.</em></h1>
+            <p>소소한 일상부터 꼭 전하고 싶은 소식까지.<br />자유롭게 기록하고 함께 나눠보세요.</p>
+          </div>
+          <div class="hero-decoration" aria-hidden="true">
+            <span class="scribble">share<br />your story</span>
+            <span class="arrow">↙</span>
+          </div>
+        </section>
+
+        <section class="board" aria-labelledby="board-title">
+          <div class="board-heading">
+            <div>
+              <p class="section-kicker">BOARD</p>
+              <h2 id="board-title">전체 이야기 <span id="post-count">0</span></h2>
+            </div>
+            <label class="search-box">
+              <span class="sr-only">게시글 검색</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
+              <input id="search-input" type="search" placeholder="제목이나 내용으로 검색" autocomplete="off" />
+            </label>
+          </div>
+
+          <div id="post-list" class="post-list" aria-live="polite"></div>
+
+          <div id="empty-state" class="empty-state" hidden>
+            <span class="empty-icon" aria-hidden="true">✎</span>
+            <h3>아직 이야기가 없어요</h3>
+            <p>첫 번째 이야기를 남겨보세요.</p>
+            <button class="button button-dark" type="button" data-action="write">글쓰기</button>
+          </div>
+
+          <nav id="pagination" class="pagination" aria-label="게시글 페이지"></nav>
+        </section>
+      </main>
+
+      <footer>
+        <span>MOA BOARD</span>
+        <p>우리의 이야기가 모이는 곳</p>
+        <span>© 2026</span>
+      </footer>
+    </div>
+
+    <dialog id="editor-dialog" class="dialog editor-dialog">
+      <form id="post-form" method="dialog">
+        <div class="dialog-header">
+          <div>
+            <p class="section-kicker">WRITE A STORY</p>
+            <h2 id="editor-title">새 이야기 쓰기</h2>
+          </div>
+          <button class="icon-button" type="button" data-action="close-editor" aria-label="닫기">×</button>
+        </div>
+        <input id="post-id" type="hidden" />
+        <label class="field">
+          <span>제목 <b>*</b></span>
+          <input id="title-input" maxlength="80" required placeholder="제목을 입력해 주세요" />
+          <small><span id="title-count">0</span>/80</small>
+        </label>
+        <label class="field">
+          <span>내용 <b>*</b></span>
+          <textarea id="content-input" maxlength="3000" required placeholder="나누고 싶은 이야기를 자유롭게 적어주세요"></textarea>
+          <small><span id="content-count">0</span>/3,000</small>
+        </label>
+        <div class="field">
+          <span>첨부파일</span>
+          <label id="drop-zone" class="drop-zone">
+            <input id="file-input" type="file" multiple />
+            <span class="upload-icon" aria-hidden="true">↥</span>
+            <strong>파일을 끌어놓거나 눌러서 선택하세요</strong>
+            <small>파일당 최대 10MB · 여러 파일 첨부 가능</small>
+          </label>
+          <ul id="file-list" class="file-list"></ul>
+        </div>
+        <div class="dialog-actions">
+          <button class="button button-ghost" type="button" data-action="close-editor">취소</button>
+          <button class="button button-accent" type="submit">이야기 등록</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="detail-dialog" class="dialog detail-dialog">
+      <article>
+        <div class="detail-topbar">
+          <span id="detail-number" class="post-number"></span>
+          <button class="icon-button" type="button" data-action="close-detail" aria-label="닫기">×</button>
+        </div>
+        <h2 id="detail-title"></h2>
+        <p id="detail-date" class="detail-date"></p>
+        <div id="detail-content" class="detail-content"></div>
+        <div id="detail-files" class="detail-files"></div>
+        <div class="detail-actions">
+          <button class="text-button" type="button" data-action="delete">삭제</button>
+          <button class="button button-dark" type="button" data-action="edit">수정하기</button>
+        </div>
+      </article>
+    </dialog>
+
+    <dialog id="confirm-dialog" class="dialog confirm-dialog">
+      <div class="confirm-symbol" aria-hidden="true">!</div>
+      <h2>이야기를 삭제할까요?</h2>
+      <p>삭제한 글과 첨부파일은 다시 복구할 수 없어요.</p>
+      <div class="dialog-actions">
+        <button class="button button-ghost" type="button" data-action="cancel-delete">취소</button>
+        <button class="button button-danger" type="button" data-action="confirm-delete">삭제하기</button>
+      </div>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="app.js?v=snowflake-4"></script>
+  </body>
+</html>

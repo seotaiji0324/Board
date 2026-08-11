@@ -1,0 +1,21 @@
+{
+  "name": "moa-snowflake-board",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/run-compatible.mjs server.mjs",
+    "init-db": "node scripts/run-compatible.mjs scripts/init-db.mjs",
+    "check-db": "node scripts/run-compatible.mjs scripts/check-db.mjs",
+    "verify-db": "node scripts/run-compatible.mjs scripts/verify-db.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "multer": "^2.0.2",
+    "snowflake-sdk": "^3.1.0"
+  }
+}
