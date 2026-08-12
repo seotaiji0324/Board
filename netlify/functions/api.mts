@@ -90,6 +90,8 @@ async function form(request: Request) {
 
 async function saveFiles(postId: number, files: File[]) {
   const store = getStore({ name: "board-attachments", consistency: "strong" });
+  const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+  if (totalSize > 4 * 1024 * 1024) throw new Error("공개 게시판 첨부파일은 전체 4MB까지 가능합니다.");
   for (const file of files) {
     if (file.size > 4 * 1024 * 1024) throw new Error("공개 게시판 첨부파일은 파일당 4MB까지 가능합니다.");
     const attachmentId = Date.now() * 1000 + randomInt(1000);
