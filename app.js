@@ -257,6 +257,7 @@ els.form.addEventListener("submit", async (event) => {
   }
   const submitButton = els.form.querySelector('[type="submit"]');
   const submitLabel = submitButton.textContent;
+  let saveVerified = false;
   submitButton.disabled = true;
   submitButton.textContent = "Snowflake에 저장 중…";
   try {
@@ -271,6 +272,7 @@ els.form.addEventListener("submit", async (event) => {
     if (existingId) {
       const updated = await api(`/api/posts/${existingId}`, { method: "PUT", body: formData });
       if (!updated?.id) throw new Error("Snowflake 수정 확인 응답이 없습니다.");
+      saveVerified = true;
       closeDialog(els.editor);
       showToast("Snowflake 수정이 확인되었습니다.");
       try { await refresh(); }
@@ -281,15 +283,22 @@ els.form.addEventListener("submit", async (event) => {
       if (!created.verified || !created.id || !created.post) {
         throw new Error("Snowflake 저장 확인 응답이 없습니다.");
       }
+      saveVerified = true;
       closeDialog(els.editor);
       state.posts = [created.post, ...state.posts.filter((post) => Number(post.id) !== Number(created.id))];
       state.page = 1;
-      render();
+      try { render(); }
+      catch { /* 저장은 완료되었으므로 다음 새로고침에서 목록을 표시합니다. */ }
       showToast("Snowflake 등록이 확인되었습니다.");
     }
   } catch (error) {
-    if (!els.editor.open) els.editor.showModal();
-    showToast(`Snowflake 등록 실패: ${error.message}`);
+    if (saveVerified) {
+      closeDialog(els.editor);
+      showToast("Snowflake 등록은 완료되었습니다. 목록을 새로고침해 주세요.");
+    } else {
+      if (!els.editor.open) els.editor.showModal();
+      showToast(`Snowflake 등록 실패: ${error.message}`);
+    }
   }
   finally {
     submitButton.disabled = false;
