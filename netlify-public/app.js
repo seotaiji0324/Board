@@ -2,7 +2,7 @@ const PAGE_SIZE = 6;
 const IS_PUBLIC_SITE = location.hostname.endsWith("github.io") || location.hostname.endsWith("netlify.app");
 const MAX_FILE_SIZE = (IS_PUBLIC_SITE ? 4 : 10) * 1024 * 1024;
 const MAX_FILE_SIZE_LABEL = IS_PUBLIC_SITE ? "4MB" : "10MB";
-const APP_VERSION = "snowflake-19";
+const APP_VERSION = "snowflake-20";
 const API_BASE = IS_PUBLIC_SITE
   ? (location.hostname.endsWith("netlify.app") ? "" : "https://board-snowflake-api.netlify.app")
   : "";
@@ -249,6 +249,7 @@ els.dropZone.addEventListener("drop", (event) => {
 });
 
 els.form.addEventListener("submit", async (event) => {
+  if (location.hostname.endsWith("netlify.app") && !els.postId.value) return;
   event.preventDefault();
   if (!els.form.reportValidity()) return;
   if (!els.title.value.trim() || !els.content.value.trim()) {
@@ -322,6 +323,10 @@ els.form.addEventListener("submit", async (event) => {
     status.className = "db-status connected";
     status.innerHTML = "<i></i> Snowflake 연결됨";
     writeButtons.forEach((button) => { button.disabled = false; });
+    if (new URLSearchParams(location.search).get("saved") === "1") {
+      showToast("Snowflake 등록이 확인되었습니다.");
+      history.replaceState(null, "", location.pathname);
+    }
   }
   catch (error) {
     render();

@@ -129,7 +129,7 @@ export default async (request: Request, context: Context) => {
     if (path === "/api/health" && request.method === "GET") {
       const [session] = await query(`SELECT CURRENT_ACCOUNT() AS "account", CURRENT_USER() AS "user",
         CURRENT_DATABASE() AS "database", CURRENT_SCHEMA() AS "schema", CURRENT_ROLE() AS "role"`);
-      return json(request, { ok: true, configured: true, appVersion: "snowflake-19", ...session });
+      return json(request, { ok: true, configured: true, appVersion: "snowflake-20", ...session });
     }
     if (path === "/api/posts" && request.method === "GET") {
       const rows = await query(`SELECT p.POST_ID AS "id", p.TITLE AS "title", p.CONTENT AS "content",
@@ -138,7 +138,7 @@ export default async (request: Request, context: Context) => {
         GROUP BY p.POST_ID,p.TITLE,p.CONTENT,p.CREATED_AT,p.UPDATED_AT ORDER BY p.CREATED_AT DESC`);
       return json(request, rows);
     }
-    if (path === "/api/posts" && request.method === "POST") {
+    if ((path === "/api/posts" || path === "/submit") && request.method === "POST") {
       const input = await form(request);
       const requestedPostId = Number(input.data.get("postId"));
       const postId = Number.isSafeInteger(requestedPostId) && requestedPostId > 0
@@ -160,6 +160,9 @@ export default async (request: Request, context: Context) => {
         FROM MEMBER.PUBLIC.BOARD_POSTS WHERE POST_ID=?`, [postId]);
       if (!verified || String(verified.title) !== input.title || String(verified.content) !== input.content) {
         throw new Error("커밋 후 MEMBER.PUBLIC.BOARD_POSTS 재조회에 실패했습니다.");
+      }
+      if (path === "/submit") {
+        return Response.redirect(new URL("/?saved=1", request.url), 303);
       }
       return json(request, {
         id: postId, created: !existing, verified: true,
@@ -205,4 +208,4 @@ export default async (request: Request, context: Context) => {
   }
 };
 
-export const config: Config = { path: "/api/*" };
+export const config: Config = { path: ["/api/*", "/submit"] };
