@@ -121,7 +121,7 @@ export default async (request: Request, context: Context) => {
     if (path === "/api/health" && request.method === "GET") {
       const [session] = await query(`SELECT CURRENT_ACCOUNT() AS "account", CURRENT_USER() AS "user",
         CURRENT_DATABASE() AS "database", CURRENT_SCHEMA() AS "schema", CURRENT_ROLE() AS "role"`);
-      return json(request, { ok: true, configured: true, appVersion: "snowflake-15", ...session });
+      return json(request, { ok: true, configured: true, appVersion: "snowflake-18", ...session });
     }
     if (path === "/api/posts" && request.method === "GET") {
       const rows = await query(`SELECT p.POST_ID AS "id", p.TITLE AS "title", p.CONTENT AS "content",
