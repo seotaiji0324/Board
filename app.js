@@ -2,7 +2,7 @@ const PAGE_SIZE = 6;
 const IS_PUBLIC_SITE = location.hostname.endsWith("github.io");
 const MAX_FILE_SIZE = (IS_PUBLIC_SITE ? 4 : 10) * 1024 * 1024;
 const MAX_FILE_SIZE_LABEL = IS_PUBLIC_SITE ? "4MB" : "10MB";
-const APP_VERSION = "snowflake-12";
+const APP_VERSION = "snowflake-13";
 const API_BASE = IS_PUBLIC_SITE
   ? "https://board-snowflake-api.netlify.app"
   : "";
@@ -270,38 +270,31 @@ els.form.addEventListener("submit", async (event) => {
     state.editorFiles.filter((file) => file instanceof File).forEach((file) => formData.append("files", file));
     if (existingId) {
       await api(`/api/posts/${existingId}`, { method: "PUT", body: formData });
-      closeDialog(els.editor);
+      const verifiedPost = await getPost(existingId);
+      if (!verifiedPost || Number(verifiedPost.id) !== existingId) {
+        throw new Error("Snowflake 수정 결과를 재조회하지 못했습니다.");
+      }
       await refresh();
-      showToast("이야기가 수정되었습니다.");
+      closeDialog(els.editor);
+      showToast("Snowflake 수정이 확인되었습니다.");
     } else {
       formData.append("postId", String(Date.now() * 1000 + Math.floor(Math.random() * 1000)));
-      const tempId = `pending-${Date.now()}`;
-      state.posts.unshift({
-        id: tempId, title, content, createdAt: new Date().toISOString(), updatedAt: null,
-        fileCount: state.editorFiles.length, syncStatus: "pending",
-      });
-      closeDialog(els.editor);
-      render();
-      showToast("게시글이 접수되었습니다. Snowflake에 저장 중입니다.");
       const created = await api("/api/posts", { method: "POST", body: formData });
       if (!created.verified || !created.id) throw new Error("Snowflake 저장 확인 응답이 없습니다.");
-      const pending = state.posts.find((post) => post.id === tempId);
-      if (pending) {
-        pending.id = Number(created.id);
-        pending.syncStatus = "synced";
+      const verifiedPost = await getPost(created.id);
+      if (!verifiedPost || Number(verifiedPost.id) !== Number(created.id)
+        || verifiedPost.title !== title || verifiedPost.content !== content) {
+        throw new Error("Snowflake 저장 결과를 재조회하지 못했습니다.");
       }
-      render();
-      showToast(`${created.target} 저장이 확인되었습니다.`);
-      setTimeout(async () => {
-        try { await refresh(); }
-        catch { /* 다음 화면 조회 시 다시 동기화됩니다. */ }
-      }, 1500);
+      await refresh();
+      const listed = state.posts.some((post) => Number(post.id) === Number(created.id));
+      if (!listed) throw new Error("Snowflake 목록에서 등록 글을 확인하지 못했습니다.");
+      closeDialog(els.editor);
+      showToast("Snowflake 등록이 확인되었습니다.");
     }
   } catch (error) {
-    state.posts = state.posts.filter((post) => post.syncStatus !== "pending");
-    render();
     if (!els.editor.open) els.editor.showModal();
-    showToast(`저장 실패: ${error.message}`);
+    showToast(`Snowflake 등록 실패: ${error.message}`);
   }
   finally {
     submitButton.disabled = false;
