@@ -2,7 +2,7 @@ const PAGE_SIZE = 6;
 const IS_PUBLIC_SITE = location.hostname.endsWith("github.io");
 const MAX_FILE_SIZE = (IS_PUBLIC_SITE ? 4 : 10) * 1024 * 1024;
 const MAX_FILE_SIZE_LABEL = IS_PUBLIC_SITE ? "4MB" : "10MB";
-const APP_VERSION = "snowflake-8";
+const APP_VERSION = "snowflake-11";
 const API_BASE = IS_PUBLIC_SITE
   ? "https://board-snowflake-api.netlify.app"
   : "";
@@ -20,12 +20,20 @@ const els = {
   files: $("#file-input"), fileList: $("#file-list"), dropZone: $("#drop-zone"), toast: $("#toast"),
 };
 
-async function api(path, options = {}) {
+const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+async function api(path, options = {}, retries = 2) {
   let response;
-  try {
-    response = await fetch(`${API_BASE}${path}`, options);
-  } catch {
-    throw new Error("Snowflake API에 연결할 수 없습니다. 페이지를 새로고침한 뒤 다시 시도해 주세요.");
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      response = await fetch(`${API_BASE}${path}`, options);
+      break;
+    } catch {
+      if (attempt === retries) {
+        throw new Error("Snowflake API에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+      }
+      await delay(600 * (attempt + 1));
+    }
   }
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
@@ -266,6 +274,7 @@ els.form.addEventListener("submit", async (event) => {
       await refresh();
       showToast("이야기가 수정되었습니다.");
     } else {
+      formData.append("postId", String(Date.now() * 1000 + Math.floor(Math.random() * 1000)));
       const tempId = `pending-${Date.now()}`;
       state.posts.unshift({
         id: tempId, title, content, createdAt: new Date().toISOString(), updatedAt: null,
@@ -291,6 +300,7 @@ els.form.addEventListener("submit", async (event) => {
   } catch (error) {
     state.posts = state.posts.filter((post) => post.syncStatus !== "pending");
     render();
+    if (!els.editor.open) els.editor.showModal();
     showToast(`저장 실패: ${error.message}`);
   }
   finally {
