@@ -1,0 +1,23 @@
+name: Deploy Snowflake API
+
+on:
+  push:
+    branches:
+      - codex/netlify-snowflake-api
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy Netlify API
+        env:
+          NETLIFY_PROXY_PATH: ${{ secrets.NETLIFY_PROXY_PATH }}
+        run: >-
+          npx -y @netlify/mcp@latest
+          --site-id e0076af4-bb46-4e0c-a923-be460823aa58
+          --proxy-path "$NETLIFY_PROXY_PATH"
