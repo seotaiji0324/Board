@@ -120,7 +120,7 @@ export default async (request: Request, context: Context) => {
     const path = new URL(request.url).pathname;
     if (path === "/api/health" && request.method === "GET") {
       await query("SELECT 1");
-      return json(request, { ok: true, configured: true, appVersion: "snowflake-8", database: "MEMBER", schema: "PUBLIC" });
+      return json(request, { ok: true, configured: true, appVersion: "snowflake-11", database: "MEMBER", schema: "PUBLIC" });
     }
     if (path === "/api/posts" && request.method === "GET") {
       const rows = await query(`SELECT p.POST_ID AS "id", p.TITLE AS "title", p.CONTENT AS "content",
@@ -130,11 +130,22 @@ export default async (request: Request, context: Context) => {
       return json(request, rows);
     }
     if (path === "/api/posts" && request.method === "POST") {
-      const input = await form(request); const postId = Date.now() * 1000 + randomInt(1000);
-      await transaction(async () => {
-        await query("INSERT INTO MEMBER.PUBLIC.BOARD_POSTS (POST_ID,TITLE,CONTENT) VALUES (?,?,?)", [postId,input.title,input.content]);
-        await saveFiles(postId, input.files);
-      });
+      const input = await form(request);
+      const requestedPostId = Number(input.data.get("postId"));
+      const postId = Number.isSafeInteger(requestedPostId) && requestedPostId > 0
+        ? requestedPostId : Date.now() * 1000 + randomInt(1000);
+      const [existing] = await query("SELECT POST_ID AS \"id\" FROM MEMBER.PUBLIC.BOARD_POSTS WHERE POST_ID=?", [postId]);
+      if (!existing) {
+        try {
+          await transaction(async () => {
+            await query("INSERT INTO MEMBER.PUBLIC.BOARD_POSTS (POST_ID,TITLE,CONTENT) VALUES (?,?,?)", [postId,input.title,input.content]);
+            await saveFiles(postId, input.files);
+          });
+        } catch (error) {
+          const [saved] = await query("SELECT POST_ID AS \"id\" FROM MEMBER.PUBLIC.BOARD_POSTS WHERE POST_ID=?", [postId]);
+          if (!saved) throw error;
+        }
+      }
       return json(request, { id: postId, created: true, verified: true, target: "MEMBER.PUBLIC.BOARD_POSTS" }, 201);
     }
     const postMatch = path.match(/^\/api\/posts\/(\d+)$/);
