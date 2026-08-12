@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - codex/pages-deploy
+      - codex/board-snowflake-release
   workflow_dispatch:
 
 permissions:
