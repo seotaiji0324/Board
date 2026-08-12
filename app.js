@@ -1,7 +1,9 @@
 const PAGE_SIZE = 6;
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const IS_PUBLIC_SITE = location.hostname.endsWith("github.io");
+const MAX_FILE_SIZE = (IS_PUBLIC_SITE ? 4 : 10) * 1024 * 1024;
+const MAX_FILE_SIZE_LABEL = IS_PUBLIC_SITE ? "4MB" : "10MB";
 const APP_VERSION = "snowflake-8";
-const API_BASE = location.hostname.endsWith("github.io")
+const API_BASE = IS_PUBLIC_SITE
   ? "https://board-snowflake-api.netlify.app"
   : "";
 
@@ -102,7 +104,12 @@ function renderEditorFiles() {
 function addFiles(fileList) {
   for (const file of fileList) {
     if (file.size > MAX_FILE_SIZE) {
-      showToast(`${file.name}: 10MB 이하 파일만 첨부할 수 있어요.`);
+      showToast(`${file.name}: ${MAX_FILE_SIZE_LABEL} 이하 파일만 첨부할 수 있어요.`);
+      continue;
+    }
+    const totalSize = state.editorFiles.reduce((sum, item) => sum + Number(item.size || 0), 0);
+    if (IS_PUBLIC_SITE && totalSize + file.size > MAX_FILE_SIZE) {
+      showToast(`공개 게시판의 첨부파일 전체 용량은 ${MAX_FILE_SIZE_LABEL}까지 가능합니다.`);
       continue;
     }
     const duplicate = state.editorFiles.some((item) => item.name === file.name && item.size === file.size);
@@ -290,6 +297,8 @@ els.form.addEventListener("submit", async (event) => {
 
 (async function init() {
   const status = $("#db-status");
+  const uploadGuide = document.querySelector("#drop-zone small");
+  if (uploadGuide) uploadGuide.textContent = `파일당 최대 ${MAX_FILE_SIZE_LABEL} · 여러 파일 첨부 가능`;
   const writeButtons = document.querySelectorAll('[data-action="write"]');
   writeButtons.forEach((button) => { button.disabled = true; });
   try {
