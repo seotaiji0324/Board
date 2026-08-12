@@ -7,6 +7,11 @@ import runtimeConfig from "./runtime-config.json" with { type: "json" };
 const allowedOrigin = "https://seotaiji0324.github.io";
 let connectionPromise: Promise<any> | undefined;
 
+function resetConnection(client?: any) {
+  connectionPromise = undefined;
+  try { client?.destroy(() => {}); } catch { /* already disconnected */ }
+}
+
 function headers(request: Request) {
   const origin = request.headers.get("origin");
   return {
@@ -61,7 +66,10 @@ async function query(sqlText: string, binds: any[] = []) {
   return new Promise<any[]>((resolve, reject) => client.execute({
     sqlText, binds,
     complete(error: Error | undefined, _statement: unknown, rows: any[]) {
-      if (error) reject(error); else resolve(rows || []);
+      if (error) {
+        resetConnection(client);
+        reject(error);
+      } else resolve(rows || []);
     },
   }));
 }
@@ -121,7 +129,7 @@ export default async (request: Request, context: Context) => {
     if (path === "/api/health" && request.method === "GET") {
       const [session] = await query(`SELECT CURRENT_ACCOUNT() AS "account", CURRENT_USER() AS "user",
         CURRENT_DATABASE() AS "database", CURRENT_SCHEMA() AS "schema", CURRENT_ROLE() AS "role"`);
-      return json(request, { ok: true, configured: true, appVersion: "snowflake-18", ...session });
+      return json(request, { ok: true, configured: true, appVersion: "snowflake-19", ...session });
     }
     if (path === "/api/posts" && request.method === "GET") {
       const rows = await query(`SELECT p.POST_ID AS "id", p.TITLE AS "title", p.CONTENT AS "content",

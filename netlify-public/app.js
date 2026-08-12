@@ -2,7 +2,7 @@ const PAGE_SIZE = 6;
 const IS_PUBLIC_SITE = location.hostname.endsWith("github.io") || location.hostname.endsWith("netlify.app");
 const MAX_FILE_SIZE = (IS_PUBLIC_SITE ? 4 : 10) * 1024 * 1024;
 const MAX_FILE_SIZE_LABEL = IS_PUBLIC_SITE ? "4MB" : "10MB";
-const APP_VERSION = "snowflake-18";
+const APP_VERSION = "snowflake-19";
 const API_BASE = IS_PUBLIC_SITE
   ? (location.hostname.endsWith("netlify.app") ? "" : "https://board-snowflake-api.netlify.app")
   : "";
@@ -27,7 +27,8 @@ async function api(path, options = {}, retries = 2) {
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
       response = await fetch(`${API_BASE}${path}`, options);
-      break;
+      if (response.status < 500 || attempt === retries) break;
+      await delay(600 * (attempt + 1));
     } catch {
       if (attempt === retries) {
         throw new Error("Snowflake API에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
