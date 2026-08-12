@@ -119,8 +119,9 @@ export default async (request: Request, context: Context) => {
   try {
     const path = new URL(request.url).pathname;
     if (path === "/api/health" && request.method === "GET") {
-      await query("SELECT 1");
-      return json(request, { ok: true, configured: true, appVersion: "snowflake-11", database: "MEMBER", schema: "PUBLIC" });
+      const [session] = await query(`SELECT CURRENT_ACCOUNT() AS "account", CURRENT_USER() AS "user",
+        CURRENT_DATABASE() AS "database", CURRENT_SCHEMA() AS "schema", CURRENT_ROLE() AS "role"`);
+      return json(request, { ok: true, configured: true, appVersion: "snowflake-12", ...session });
     }
     if (path === "/api/posts" && request.method === "GET") {
       const rows = await query(`SELECT p.POST_ID AS "id", p.TITLE AS "title", p.CONTENT AS "content",
@@ -146,7 +147,15 @@ export default async (request: Request, context: Context) => {
           if (!saved) throw error;
         }
       }
-      return json(request, { id: postId, created: true, verified: true, target: "MEMBER.PUBLIC.BOARD_POSTS" }, 201);
+      const [verified] = await query(`SELECT POST_ID AS "id", TITLE AS "title", CONTENT AS "content"
+        FROM MEMBER.PUBLIC.BOARD_POSTS WHERE POST_ID=?`, [postId]);
+      if (!verified || String(verified.title) !== input.title || String(verified.content) !== input.content) {
+        throw new Error("커밋 후 MEMBER.PUBLIC.BOARD_POSTS 재조회에 실패했습니다.");
+      }
+      return json(request, {
+        id: postId, created: !existing, verified: true,
+        target: "MEMBER.PUBLIC.BOARD_POSTS", verifiedTitle: verified.title,
+      }, 201);
     }
     const postMatch = path.match(/^\/api\/posts\/(\d+)$/);
     if (postMatch && request.method === "GET") {
