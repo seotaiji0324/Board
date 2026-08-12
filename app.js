@@ -1,6 +1,9 @@
 const PAGE_SIZE = 6;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const APP_VERSION = "snowflake-8";
+const API_BASE = location.hostname.endsWith("github.io")
+  ? "https://board-snowflake-api.netlify.app"
+  : "";
 
 const state = {
   posts: [], query: "", page: 1, selectedId: null, editorFiles: [],
@@ -16,7 +19,7 @@ const els = {
 };
 
 async function api(path, options = {}) {
-  const response = await fetch(path, options);
+  const response = await fetch(`${API_BASE}${path}`, options);
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     throw new Error(data.message || `요청을 처리하지 못했습니다. (${response.status})`);
@@ -137,7 +140,7 @@ async function showDetail(id) {
     $("#detail-files").innerHTML = (post.files || []).map((file) => `
       <div class="attachment">
         <span>📎 ${escapeHtml(file.name)} · ${formatBytes(file.size)}</span>
-        <a href="/api/attachments/${file.id}/download">다운로드 ↓</a>
+        <a href="${API_BASE}/api/attachments/${file.id}/download">다운로드 ↓</a>
       </div>`).join("");
     els.detail.showModal();
   } catch (error) { showToast(error.message); }

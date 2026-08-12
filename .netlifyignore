@@ -1,0 +1,9 @@
+.git/
+.github/
+.certs/
+.diagnostics/
+.uploads/
+.netlify/
+node_modules/
+snowflake.log
+.env

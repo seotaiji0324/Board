@@ -3,5 +3,6 @@ node_modules/
 .certs/
 .uploads/
 .diagnostics/
+.netlify/
 *.log
 .DS_Store
