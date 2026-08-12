@@ -2,7 +2,7 @@ const PAGE_SIZE = 6;
 const IS_PUBLIC_SITE = location.hostname.endsWith("github.io");
 const MAX_FILE_SIZE = (IS_PUBLIC_SITE ? 4 : 10) * 1024 * 1024;
 const MAX_FILE_SIZE_LABEL = IS_PUBLIC_SITE ? "4MB" : "10MB";
-const APP_VERSION = "snowflake-13";
+const APP_VERSION = "snowflake-15";
 const API_BASE = IS_PUBLIC_SITE
   ? "https://board-snowflake-api.netlify.app"
   : "";
@@ -278,11 +278,14 @@ els.form.addEventListener("submit", async (event) => {
     } else {
       formData.append("postId", String(Date.now() * 1000 + Math.floor(Math.random() * 1000)));
       const created = await api("/api/posts", { method: "POST", body: formData });
-      if (!created.verified || !created.id) throw new Error("Snowflake 저장 확인 응답이 없습니다.");
+      if (!created.verified || !created.id || !created.post) {
+        throw new Error("Snowflake 저장 확인 응답이 없습니다.");
+      }
       closeDialog(els.editor);
+      state.posts = [created.post, ...state.posts.filter((post) => Number(post.id) !== Number(created.id))];
+      state.page = 1;
+      render();
       showToast("Snowflake 등록이 확인되었습니다.");
-      try { await refresh(); }
-      catch { showToast("등록은 완료되었습니다. 목록을 새로고침해 주세요."); }
     }
   } catch (error) {
     if (!els.editor.open) els.editor.showModal();
