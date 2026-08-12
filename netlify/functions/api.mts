@@ -2,6 +2,7 @@ import type { Config, Context } from "@netlify/functions";
 import { getStore } from "@netlify/blobs";
 import snowflake from "snowflake-sdk";
 import { randomInt } from "node:crypto";
+import runtimeConfig from "./runtime-config.json" with { type: "json" };
 
 const allowedOrigin = "https://seotaiji0324.github.io";
 let connectionPromise: Promise<any> | undefined;
@@ -23,8 +24,14 @@ function json(request: Request, value: unknown, status = 200) {
   return new Response(JSON.stringify(value), { status, headers: headers(request) });
 }
 
+const configKey: Record<string, keyof typeof runtimeConfig> = {
+  SNOWFLAKE_ACCOUNT: "account", SNOWFLAKE_USERNAME: "username",
+  SNOWFLAKE_PASSWORD: "password", SNOWFLAKE_AUTHENTICATOR: "authenticator",
+  SNOWFLAKE_DATABASE: "database", SNOWFLAKE_SCHEMA: "schema",
+};
+
 function env(name: string, fallback?: string) {
-  const value = Netlify.env.get(name) || fallback;
+  const value = Netlify.env.get(name) || runtimeConfig[configKey[name]] || fallback;
   if (!value) throw new Error(`${name} 환경변수가 필요합니다.`);
   return value;
 }

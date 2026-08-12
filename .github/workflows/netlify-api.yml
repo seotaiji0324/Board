@@ -14,6 +14,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Inject Snowflake runtime configuration
+        env:
+          SF_ACCOUNT: ${{ secrets.SF_ACCOUNT }}
+          SF_USERNAME: ${{ secrets.SF_USERNAME }}
+          SF_PASSWORD: ${{ secrets.SF_PASSWORD }}
+          SF_AUTHENTICATOR: ${{ secrets.SF_AUTHENTICATOR }}
+          SF_DATABASE: ${{ secrets.SF_DATABASE }}
+          SF_SCHEMA: ${{ secrets.SF_SCHEMA }}
+        run: |
+          python - <<'PY'
+          import json, os
+          path = "netlify/functions/runtime-config.json"
+          values = {
+              "account": os.environ["SF_ACCOUNT"],
+              "username": os.environ["SF_USERNAME"],
+              "password": os.environ["SF_PASSWORD"],
+              "authenticator": os.environ["SF_AUTHENTICATOR"],
+              "database": os.environ["SF_DATABASE"],
+              "schema": os.environ["SF_SCHEMA"],
+          }
+          with open(path, "w", encoding="utf-8") as file:
+              json.dump(values, file)
+          PY
       - name: Deploy Netlify API
         env:
           NETLIFY_PROXY_PATH: ${{ secrets.NETLIFY_PROXY_PATH }}
