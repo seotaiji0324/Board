@@ -2,7 +2,7 @@ const PAGE_SIZE = 6;
 const IS_PUBLIC_SITE = location.hostname.endsWith("github.io");
 const MAX_FILE_SIZE = (IS_PUBLIC_SITE ? 4 : 10) * 1024 * 1024;
 const MAX_FILE_SIZE_LABEL = IS_PUBLIC_SITE ? "4MB" : "10MB";
-const APP_VERSION = "snowflake-15";
+const APP_VERSION = "snowflake-17";
 const API_BASE = IS_PUBLIC_SITE
   ? "https://board-snowflake-api.netlify.app"
   : "";
@@ -317,11 +317,7 @@ els.form.addEventListener("submit", async (event) => {
   const writeButtons = document.querySelectorAll('[data-action="write"]');
   writeButtons.forEach((button) => { button.disabled = true; });
   try {
-    const [health] = await Promise.all([api("/api/health"), refresh()]);
-    if (health.appVersion !== APP_VERSION) {
-      location.reload();
-      return;
-    }
+    await Promise.all([api("/api/health"), refresh()]);
     status.className = "db-status connected";
     status.innerHTML = "<i></i> Snowflake 연결됨";
     writeButtons.forEach((button) => { button.disabled = false; });
