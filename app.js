@@ -21,10 +21,18 @@ const els = {
 };
 
 async function api(path, options = {}) {
-  const response = await fetch(`${API_BASE}${path}`, options);
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, { cache: "no-store", ...options });
+  } catch {
+    throw new Error("Snowflake API에 연결할 수 없습니다. 페이지를 새로고침한 뒤 다시 시도해 주세요.");
+  }
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(data.message || `요청을 처리하지 못했습니다. (${response.status})`);
+    if (response.status === 413) {
+      throw new Error(`첨부파일 전체 크기는 ${MAX_FILE_SIZE_LABEL} 이하여야 합니다.`);
+    }
+    throw new Error(data.message || `Snowflake 저장 요청을 처리하지 못했습니다. (${response.status})`);
   }
   return response.status === 204 ? null : response.json();
 }
