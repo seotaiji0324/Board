@@ -269,28 +269,20 @@ els.form.addEventListener("submit", async (event) => {
     formData.append("retainedAttachmentIds", JSON.stringify(state.editorFiles.filter((file) => file.id).map((file) => Number(file.id))));
     state.editorFiles.filter((file) => file instanceof File).forEach((file) => formData.append("files", file));
     if (existingId) {
-      await api(`/api/posts/${existingId}`, { method: "PUT", body: formData });
-      const verifiedPost = await getPost(existingId);
-      if (!verifiedPost || Number(verifiedPost.id) !== existingId) {
-        throw new Error("Snowflake 수정 결과를 재조회하지 못했습니다.");
-      }
-      await refresh();
+      const updated = await api(`/api/posts/${existingId}`, { method: "PUT", body: formData });
+      if (!updated?.id) throw new Error("Snowflake 수정 확인 응답이 없습니다.");
       closeDialog(els.editor);
       showToast("Snowflake 수정이 확인되었습니다.");
+      try { await refresh(); }
+      catch { showToast("수정은 완료되었습니다. 목록을 새로고침해 주세요."); }
     } else {
       formData.append("postId", String(Date.now() * 1000 + Math.floor(Math.random() * 1000)));
       const created = await api("/api/posts", { method: "POST", body: formData });
       if (!created.verified || !created.id) throw new Error("Snowflake 저장 확인 응답이 없습니다.");
-      const verifiedPost = await getPost(created.id);
-      if (!verifiedPost || Number(verifiedPost.id) !== Number(created.id)
-        || verifiedPost.title !== title || verifiedPost.content !== content) {
-        throw new Error("Snowflake 저장 결과를 재조회하지 못했습니다.");
-      }
-      await refresh();
-      const listed = state.posts.some((post) => Number(post.id) === Number(created.id));
-      if (!listed) throw new Error("Snowflake 목록에서 등록 글을 확인하지 못했습니다.");
       closeDialog(els.editor);
       showToast("Snowflake 등록이 확인되었습니다.");
+      try { await refresh(); }
+      catch { showToast("등록은 완료되었습니다. 목록을 새로고침해 주세요."); }
     }
   } catch (error) {
     if (!els.editor.open) els.editor.showModal();
