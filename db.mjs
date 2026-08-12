@@ -3,6 +3,13 @@ import snowflake from "snowflake-sdk";
 
 const required = ["SNOWFLAKE_ACCOUNT"];
 let connectionPromise;
+let activeConnection;
+
+function discardConnection(connection) {
+  if (activeConnection === connection) activeConnection = undefined;
+  connectionPromise = undefined;
+  try { connection.destroy(() => {}); } catch { /* already disconnected */ }
+}
 
 export function missingConfiguration() {
   return required.filter((name) => !process.env[name]);
@@ -49,6 +56,7 @@ export async function getConnection() {
           wrapped.sqlState = error.sqlState;
           reject(wrapped);
         } else {
+          activeConnection = connected;
           resolve(connected);
         }
       });
@@ -60,15 +68,29 @@ export async function getConnection() {
 export async function query(sqlText, binds = [], options = {}) {
   const connection = await getConnection();
   return new Promise((resolve, reject) => {
-    connection.execute({
+    let settled = false;
+    const timeoutMs = options.timeoutMs ?? 20000;
+    const executeOptions = { ...options };
+    delete executeOptions.timeoutMs;
+    const statement = connection.execute({
       sqlText,
       binds,
-      ...options,
+      ...executeOptions,
       complete(error, statement, rows) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
         if (error) reject(new Error(`Snowflake 쿼리 실패: ${error.message}`));
         else resolve(rows || []);
       },
     });
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try { statement.cancel(() => {}); } catch { /* cancellation is best effort */ }
+      discardConnection(connection);
+      reject(new Error(`Snowflake 응답 제한 시간(${timeoutMs}ms)을 초과했습니다. 잠시 후 다시 시도해 주세요.`));
+    }, timeoutMs);
   });
 }
 
@@ -105,6 +127,13 @@ export const schemaStatements = [
     CONSTRAINT PK_BOARD_ATTACHMENTS PRIMARY KEY (ATTACHMENT_ID),
     CONSTRAINT FK_BOARD_ATTACHMENTS_POST FOREIGN KEY (POST_ID)
       REFERENCES MEMBER.PUBLIC.BOARD_POSTS (POST_ID)
+  )`,
+  `CREATE TABLE IF NOT EXISTS MEMBER.PUBLIC.BOARD_ATTACHMENT_CHUNKS (
+    ATTACHMENT_ID NUMBER(38, 0) NOT NULL,
+    CHUNK_INDEX NUMBER(38, 0) NOT NULL,
+    CHUNK_DATA BINARY(1048576) NOT NULL,
+    CREATED_AT TIMESTAMP_TZ NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+    CONSTRAINT PK_BOARD_ATTACHMENT_CHUNKS PRIMARY KEY (ATTACHMENT_ID, CHUNK_INDEX)
   )`,
 ];
 

@@ -1,5 +1,6 @@
 const PAGE_SIZE = 6;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const APP_VERSION = "snowflake-8";
 
 const state = {
   posts: [], query: "", page: 1, selectedId: null, editorFiles: [],
@@ -255,15 +256,19 @@ els.form.addEventListener("submit", async (event) => {
       closeDialog(els.editor);
       render();
       showToast("게시글이 접수되었습니다. Snowflake에 저장 중입니다.");
-      await api("/api/posts", { method: "POST", body: formData });
+      const created = await api("/api/posts", { method: "POST", body: formData });
+      if (!created.verified || !created.id) throw new Error("Snowflake 저장 확인 응답이 없습니다.");
       const pending = state.posts.find((post) => post.id === tempId);
-      if (pending) pending.syncStatus = "synced";
+      if (pending) {
+        pending.id = Number(created.id);
+        pending.syncStatus = "synced";
+      }
       render();
-      showToast("Snowflake 저장이 완료되었습니다.");
+      showToast(`${created.target} 저장이 확인되었습니다.`);
       setTimeout(async () => {
         try { await refresh(); }
         catch { /* 다음 화면 조회 시 다시 동기화됩니다. */ }
-      }, 5000);
+      }, 1500);
     }
   } catch (error) {
     state.posts = state.posts.filter((post) => post.syncStatus !== "pending");
@@ -282,10 +287,17 @@ els.form.addEventListener("submit", async (event) => {
 
 (async function init() {
   const status = $("#db-status");
+  const writeButtons = document.querySelectorAll('[data-action="write"]');
+  writeButtons.forEach((button) => { button.disabled = true; });
   try {
-    await refresh();
+    const [health] = await Promise.all([api("/api/health"), refresh()]);
+    if (health.appVersion !== APP_VERSION) {
+      location.reload();
+      return;
+    }
     status.className = "db-status connected";
     status.innerHTML = "<i></i> Snowflake 연결됨";
+    writeButtons.forEach((button) => { button.disabled = false; });
   }
   catch (error) {
     render();

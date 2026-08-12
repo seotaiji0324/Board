@@ -2,11 +2,16 @@ import express from "express";
 import multer from "multer";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { initializeSchema, missingConfiguration, query, transaction } from "./db.mjs";
+import { randomInt } from "node:crypto";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { getConnection, missingConfiguration, query, transaction } from "./db.mjs";
 
 const app = express();
 const root = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 43177);
+const appVersion = "snowflake-8";
+const uploadRoot = join(root, ".uploads");
+let snowflakeReady = false;
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024, files: 10, fields: 20 },
@@ -34,23 +39,67 @@ function numberId(value) {
   return id;
 }
 
+function createPostId() {
+  return Date.now() * 1000 + randomInt(1000);
+}
+
+function createAttachmentId() {
+  return Date.now() * 1000 + randomInt(1000);
+}
+
 async function insertAttachments(postId, files) {
   for (const file of files || []) {
-    await query(
-      `INSERT INTO MEMBER.PUBLIC.BOARD_ATTACHMENTS
-       (POST_ID, FILE_NAME, CONTENT_TYPE, FILE_SIZE, FILE_DATA)
-       SELECT ?, ?, ?, ?, TO_BINARY(?, 'BASE64')`,
-      [postId, file.originalname, file.mimetype || "application/octet-stream", file.size, file.buffer.toString("base64")]
-    );
+    const attachmentId = createAttachmentId();
+    await mkdir(uploadRoot, { recursive: true });
+    await writeFile(join(uploadRoot, String(attachmentId)), file.buffer);
+    try {
+      await query(
+        `INSERT INTO MEMBER.PUBLIC.BOARD_ATTACHMENTS
+         (ATTACHMENT_ID, POST_ID, FILE_NAME, CONTENT_TYPE, FILE_SIZE, FILE_DATA)
+         SELECT ?, ?, ?, ?, ?, TO_BINARY('00', 'HEX')`,
+        [attachmentId, postId, file.originalname, file.mimetype || "application/octet-stream", file.size]
+      );
+    } catch (error) {
+      await unlink(join(uploadRoot, String(attachmentId))).catch(() => {});
+      throw new Error(`첨부파일 메타데이터 저장 실패: ${error.message}`);
+    }
   }
+}
+
+async function deleteAttachmentData(postId, retained = []) {
+  const keepSql = retained.length ? ` AND ATTACHMENT_ID NOT IN (${retained.map(() => "?").join(",")})` : "";
+  const binds = [postId, ...retained];
+  const attachments = await query(`SELECT ATTACHMENT_ID AS "id" FROM MEMBER.PUBLIC.BOARD_ATTACHMENTS
+                                    WHERE POST_ID = ?${keepSql}`, binds);
+  await query(`DELETE FROM MEMBER.PUBLIC.BOARD_ATTACHMENT_CHUNKS
+               WHERE ATTACHMENT_ID IN (SELECT ATTACHMENT_ID FROM MEMBER.PUBLIC.BOARD_ATTACHMENTS
+               WHERE POST_ID = ?${keepSql})`, binds);
+  await query(`DELETE FROM MEMBER.PUBLIC.BOARD_ATTACHMENTS WHERE POST_ID = ?${keepSql}`, binds);
+  await Promise.all(attachments.map((attachment) =>
+    unlink(join(uploadRoot, String(attachment.id))).catch(() => {})
+  ));
+}
+
+async function verifyStoredPost(postId) {
+  const [stored] = await query(`
+    SELECT POST_ID AS "id", TITLE AS "title", CREATED_AT AS "createdAt"
+    FROM MEMBER.PUBLIC.BOARD_POSTS WHERE POST_ID = ?`, [postId]);
+  if (!stored) throw new Error("Snowflake 저장 확인에 실패했습니다.");
+  return stored;
 }
 
 app.get("/api/health", async (_request, response, next) => {
   try {
     const missing = missingConfiguration();
     if (missing.length) return response.status(503).json({ ok: false, configured: false, missing });
-    const [row] = await query(`SELECT CURRENT_ACCOUNT() AS "account", CURRENT_DATABASE() AS "database", CURRENT_SCHEMA() AS "schema"`);
-    response.json({ ok: true, configured: true, ...row });
+    response.json({
+      ok: snowflakeReady,
+      configured: true,
+      appVersion,
+      account: process.env.SNOWFLAKE_ACCOUNT,
+      database: process.env.SNOWFLAKE_DATABASE || "MEMBER",
+      schema: process.env.SNOWFLAKE_SCHEMA || "PUBLIC",
+    });
   } catch (error) { next(error); }
 });
 
@@ -88,17 +137,17 @@ app.post("/api/posts", upload.array("files", 10), async (request, response, next
   try {
     const title = requireText(request.body.title, "제목", 80);
     const content = requireText(request.body.content, "내용", 3000);
+    const postId = createPostId();
     if (!request.files?.length) {
-      await query(`INSERT INTO MEMBER.PUBLIC.BOARD_POSTS (TITLE, CONTENT) VALUES (?, ?)`, [title, content]);
-      return response.status(201).json({ created: true });
+      await query(`INSERT INTO MEMBER.PUBLIC.BOARD_POSTS (POST_ID, TITLE, CONTENT) VALUES (?, ?, ?)`, [postId, title, content], { timeoutMs: 20000 });
+      return response.status(201).json({ id: postId, created: true, verified: true, target: "MEMBER.PUBLIC.BOARD_POSTS" });
     }
     const id = await transaction(async () => {
-      const [nextId] = await query(`SELECT MEMBER.PUBLIC.BOARD_POST_ID_SEQ.NEXTVAL AS "id"`);
-      await query(`INSERT INTO MEMBER.PUBLIC.BOARD_POSTS (POST_ID, TITLE, CONTENT) VALUES (?, ?, ?)`, [nextId.id, title, content]);
-      await insertAttachments(nextId.id, request.files);
-      return nextId.id;
+      await query(`INSERT INTO MEMBER.PUBLIC.BOARD_POSTS (POST_ID, TITLE, CONTENT) VALUES (?, ?, ?)`, [postId, title, content], { timeoutMs: 20000 });
+      await insertAttachments(postId, request.files);
+      return postId;
     });
-    response.status(201).json({ id });
+    response.status(201).json({ id, created: true, verified: true, target: "MEMBER.PUBLIC.BOARD_POSTS" });
   } catch (error) { next(error); }
 });
 
@@ -112,8 +161,7 @@ app.put("/api/posts/:id", upload.array("files", 10), async (request, response, n
     catch { throw Object.assign(new Error("첨부파일 정보가 올바르지 않습니다."), { status: 400 }); }
     await transaction(async () => {
       const result = await query(`UPDATE MEMBER.PUBLIC.BOARD_POSTS SET TITLE = ?, CONTENT = ?, UPDATED_AT = CURRENT_TIMESTAMP() WHERE POST_ID = ?`, [title, content, id]);
-      const keepSql = retained.length ? ` AND ATTACHMENT_ID NOT IN (${retained.map(() => "?").join(",")})` : "";
-      await query(`DELETE FROM MEMBER.PUBLIC.BOARD_ATTACHMENTS WHERE POST_ID = ?${keepSql}`, [id, ...retained]);
+      await deleteAttachmentData(id, retained);
       await insertAttachments(id, request.files);
       return result;
     });
@@ -125,7 +173,7 @@ app.delete("/api/posts/:id", async (request, response, next) => {
   try {
     const id = numberId(request.params.id);
     await transaction(async () => {
-      await query(`DELETE FROM MEMBER.PUBLIC.BOARD_ATTACHMENTS WHERE POST_ID = ?`, [id]);
+      await deleteAttachmentData(id);
       await query(`DELETE FROM MEMBER.PUBLIC.BOARD_POSTS WHERE POST_ID = ?`, [id]);
     });
     response.status(204).end();
@@ -142,7 +190,10 @@ app.get("/api/attachments/:id/download", async (request, response, next) => {
     const safeName = String(file.name).replace(/[\r\n"]/g, "_");
     response.setHeader("Content-Type", file.type || "application/octet-stream");
     response.setHeader("Content-Disposition", `attachment; filename="${safeName}"; filename*=UTF-8''${encodeURIComponent(file.name)}`);
-    response.send(Buffer.isBuffer(file.data) ? file.data : Buffer.from(file.data, "hex"));
+    const data = await readFile(join(uploadRoot, String(id))).catch(() =>
+      Buffer.isBuffer(file.data) ? file.data : Buffer.from(file.data, "hex")
+    );
+    response.send(data);
   } catch (error) { next(error); }
 });
 
@@ -160,8 +211,9 @@ app.listen(port, "127.0.0.1", async () => {
     return;
   }
   try {
-    await initializeSchema();
-    console.log("MEMBER.PUBLIC 게시판 테이블 준비 완료");
+    await getConnection();
+    snowflakeReady = true;
+    console.log("MEMBER.PUBLIC Snowflake 연결 준비 완료");
   } catch (error) {
     console.error(error.message);
   }
