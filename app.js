@@ -1,10 +1,10 @@
 const PAGE_SIZE = 6;
-const IS_PUBLIC_SITE = location.hostname.endsWith("github.io");
+const IS_PUBLIC_SITE = location.hostname.endsWith("github.io") || location.hostname.endsWith("netlify.app");
 const MAX_FILE_SIZE = (IS_PUBLIC_SITE ? 4 : 10) * 1024 * 1024;
 const MAX_FILE_SIZE_LABEL = IS_PUBLIC_SITE ? "4MB" : "10MB";
-const APP_VERSION = "snowflake-17";
+const APP_VERSION = "snowflake-18";
 const API_BASE = IS_PUBLIC_SITE
-  ? "https://board-snowflake-api.netlify.app"
+  ? (location.hostname.endsWith("netlify.app") ? "" : "https://board-snowflake-api.netlify.app")
   : "";
 
 const state = {

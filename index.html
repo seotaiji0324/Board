@@ -1,6 +1,11 @@
 <!doctype html>
 <html lang="ko">
   <head>
+    <script>
+      if (location.hostname.endsWith("github.io")) {
+        location.replace("https://board-snowflake-api.netlify.app/");
+      }
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f6f4ee" />
@@ -136,6 +141,6 @@
     </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="app.js?v=snowflake-17"></script>
+    <script src="app.js?v=snowflake-18"></script>
   </body>
 </html>
